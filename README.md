@@ -2,7 +2,15 @@
 
 ### AI-Based Internet Connection Quality Analyzer using AI/LLM (LangChain) + Fuzzy Logic
 
-NetSense AI is a web-based application that analyzes Internet connection quality using **Latency, Jitter, and Packet Loss**. It combines **Fuzzy Logic** with **AI/LLM using LangChain and Google Gemini** to provide a quality score, connection analysis, and recommendations.
+**NetSense AI** is a web-based application that analyzes Internet connection quality using **Latency, Jitter, and Packet Loss**. It combines **Fuzzy Logic** with **AI/LLM using LangChain and Google Gemini** to provide a quality score, connection analysis, and recommendations.
+
+## 🌐 Live Demo
+
+🚀 **Try NetSense AI Online:**
+
+https://ai-internet-quality-analyzer.streamlit.app/
+
+> The application is deployed using **Streamlit Community Cloud**.
 
 ## ✨ Features
 
@@ -20,11 +28,13 @@ NetSense AI is a web-based application that analyzes Internet connection quality
 ## 🛠️ Technologies
 
 - **Frontend:** HTML, CSS, JavaScript, Chart.js
+- **Streamlit Interface:** Python, Streamlit
 - **Backend:** Python, FastAPI, Uvicorn
 - **Fuzzy Logic:** scikit-fuzzy, NumPy, SciPy
 - **AI/LLM:** LangChain, Google Gemini
 - **Network Testing:** ICMP Ping
 - **Development:** VS Code, Git, GitHub
+- **Deployment:** Streamlit Community Cloud
 
 ## 🧠 How It Works
 
@@ -59,6 +69,7 @@ AI-Internet-Quality-Analyzer/
 │   ├── script.js
 │   └── style.css
 │
+├── streamlit_app.py
 ├── .gitignore
 ├── README.md
 └── requirements.txt
@@ -93,7 +104,19 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-### 5. Start Backend
+### 5. Run Streamlit Application
+
+```bash
+python -m streamlit run streamlit_app.py
+```
+
+The application will open locally at:
+
+```text
+http://localhost:8501
+```
+
+### 6. Run Original FastAPI Version
 
 ```bash
 cd backend
@@ -106,9 +129,7 @@ Backend:
 http://127.0.0.1:8000
 ```
 
-### 6. Start Frontend
-
-Open `frontend/index.html` using **VS Code Live Server**.
+The original HTML frontend can be opened using **VS Code Live Server**.
 
 ## 🔑 Gemini API Key
 
@@ -129,7 +150,8 @@ Current features include:
 * ✅ Gemini AI Analysis
 * ✅ Use Case Analysis
 * ✅ AI Recommendations
-* 🚧 Public Deployment
+* ✅ Streamlit Web Application
+* ✅ Public Deployment
 * 🚧 Historical Monitoring
 * 🚧 Download/Upload Speed Testing
 
