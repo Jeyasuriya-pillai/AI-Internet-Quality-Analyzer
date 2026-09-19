@@ -723,63 +723,123 @@ with right:
 
 
 # =========================================================
-# RUN ANALYSIS (results kept in session so reruns don't erase them)
+# RUN ANALYSIS
+# IMPORTANT:
+# st_js_blocking() can trigger a Streamlit rerun while waiting
+# for browser-side JavaScript. We therefore store the user's
+# request in session_state before starting the measurement.
 # =========================================================
 
 if analyze_button:
     if not api_key:
         st.error("Please enter your Gemini API key.")
     else:
+        st.session_state["analysis_requested"] = True
+        st.session_state["analysis_api_key"] = api_key
+        st.session_state["analysis_use_case"] = use_case_input
+
+        test_id = st.session_state.get("network_test_id", 0) + 1
+        st.session_state["network_test_id"] = test_id
+
+        # Clear the previous result so the new test becomes the active one.
+        st.session_state.pop("res", None)
+
+
+# Continue the analysis after the rerun triggered by st_js_blocking().
+if st.session_state.get("analysis_requested", False):
+
+    api_key_run = st.session_state.get("analysis_api_key", "")
+    use_case_run = st.session_state.get(
+        "analysis_use_case",
+        "General Usage"
+    )
+    test_id = st.session_state.get("network_test_id", 1)
+
+    try:
         with st.spinner("Testing your connection..."):
-            try:
-                test_id = st.session_state.get("network_test_id", 0) + 1
-                st.session_state["network_test_id"] = test_id
-                network = measure_browser_connection(test_id)
 
-                if not network.get("success"):
-                    st.error(
-                        "Unable to measure the connection from your browser. "
-                        "Please check your internet connection and try again."
-                    )
-                    st.info(
-                        network.get(
-                            "error",
-                            "The browser network test did not return usable measurements."
-                        )
-                    )
-                    st.stop()
+            # -------------------------------------------------
+            # 1. Measure from the visitor's browser
+            # -------------------------------------------------
+            network = measure_browser_connection(test_id)
 
+            if not network.get("success"):
+                st.error(
+                    "Unable to measure the connection from your browser. "
+                    "Please check your internet connection and try again."
+                )
+                st.info(
+                    network.get(
+                        "error",
+                        "The browser network test did not return usable measurements."
+                    )
+                )
+                st.session_state["analysis_requested"] = False
+
+            else:
+                # -------------------------------------------------
+                # 2. Get the measured network values
+                # -------------------------------------------------
                 latency = network["latency"]
                 jitter = network["jitter"]
                 packet_loss = network["packet_loss"]
 
-                fuzzy = calculate_quality(latency, jitter, packet_loss)
+                # -------------------------------------------------
+                # 3. Fuzzy Logic scoring
+                # -------------------------------------------------
+                fuzzy = calculate_quality(
+                    latency,
+                    jitter,
+                    packet_loss
+                )
 
+                # -------------------------------------------------
+                # 4. LangChain + Gemini explanation
+                # -------------------------------------------------
                 ai = generate_ai_analysis(
-                    api_key=api_key,
+                    api_key=api_key_run,
                     latency=latency,
                     jitter=jitter,
                     packet_loss=packet_loss,
                     quality_score=fuzzy["score"],
                     category=fuzzy["category"],
-                    use_case=use_case_input,
+                    use_case=use_case_run,
                 )
 
+                # -------------------------------------------------
+                # 5. Save everything so results survive reruns
+                # -------------------------------------------------
                 st.session_state["res"] = {
                     "latency": latency,
                     "jitter": jitter,
                     "packet_loss": packet_loss,
-                    "network_method": network.get("method", "Browser HTTP probes"),
-                    "successful_probes": network.get("successful", 0),
-                    "failed_probes": network.get("failed", 0),
-                    "total_probes": network.get("probes", 0),
+                    "network_method": network.get(
+                        "method",
+                        "Browser HTTP probes"
+                    ),
+                    "successful_probes": network.get(
+                        "successful",
+                        0
+                    ),
+                    "failed_probes": network.get(
+                        "failed",
+                        0
+                    ),
+                    "total_probes": network.get(
+                        "probes",
+                        0
+                    ),
                     "fuzzy": fuzzy,
                     "ai": ai,
-                    "use_case": use_case_input,
+                    "use_case": use_case_run,
                 }
-            except Exception as error:
-                st.error("Something went wrong during analysis.")
-                st.exception(error)
+
+                st.session_state["analysis_requested"] = False
+
+    except Exception as error:
+        st.error("Something went wrong during analysis.")
+        st.exception(error)
+        st.session_state["analysis_requested"] = False
 
 
 # =========================================================
