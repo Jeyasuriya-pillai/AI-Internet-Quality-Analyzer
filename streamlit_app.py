@@ -3,6 +3,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import sys
 import os
+import json
+from streamlit_js import st_js_blocking
 
 # =========================================================
 # BACKEND PATH
@@ -10,7 +12,6 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "backend"))
 
-from network_test import ping_host
 from fuzzy_logic import calculate_quality
 from ai_analyzer import generate_ai_analysis
 
@@ -251,6 +252,135 @@ st.markdown(CSS, unsafe_allow_html=True)
 # =========================================================
 # HELPERS - LOGIC
 # =========================================================
+
+# =========================================================
+# BROWSER-SIDE NETWORK TEST
+# =========================================================
+# Streamlit Cloud executes Python on the cloud server. The old
+# ping_host() therefore measured the cloud server's network and could
+# return 999 ms / 100% loss when ICMP was unavailable.
+#
+# This test runs JavaScript in the visitor's browser and measures small
+# HTTP requests from the browser. It is an HTTP-based estimate, not raw
+# ICMP ping, because normal browser JavaScript cannot send ICMP packets.
+
+BROWSER_TEST_JS = """
+const probes = 8;
+const timeoutMs = 5000;
+const targets = [
+    "https://www.gstatic.com/generate_204",
+    "https://www.google.com/generate_204"
+];
+
+const samples = [];
+
+for (let i = 0; i < probes; i++) {
+    const target = targets[i % targets.length] +
+        "?netsense=" + Date.now() + "-" + i + "-" + Math.random();
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const start = performance.now();
+
+    try {
+        await fetch(target, {
+            method: "GET",
+            mode: "no-cors",
+            cache: "no-store",
+            signal: controller.signal
+        });
+
+        const elapsed = performance.now() - start;
+        samples.push(Number(elapsed.toFixed(2)));
+    } catch (error) {
+        samples.push(null);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+const successful = samples.filter(v => typeof v === "number");
+const failed = samples.length - successful.length;
+
+let latency = null;
+let jitter = null;
+
+if (successful.length > 0) {
+    latency = successful.reduce((a, b) => a + b, 0) / successful.length;
+
+    if (successful.length > 1) {
+        let totalDiff = 0;
+        for (let i = 1; i < successful.length; i++) {
+            totalDiff += Math.abs(successful[i] - successful[i - 1]);
+        }
+        jitter = totalDiff / (successful.length - 1);
+    } else {
+        jitter = 0;
+    }
+}
+
+return JSON.stringify({
+    success: successful.length > 0,
+    latency: latency === null ? null : Number(latency.toFixed(2)),
+    jitter: jitter === null ? null : Number(jitter.toFixed(2)),
+    packet_loss: Number(((failed / probes) * 100).toFixed(2)),
+    successful: successful.length,
+    failed: failed,
+    probes: probes,
+    samples: samples,
+    method: "Browser HTTP probes"
+});
+"""
+
+
+def measure_browser_connection(test_id):
+    """Measure the visitor's connection from their browser."""
+    try:
+        raw = st_js_blocking(
+            code=BROWSER_TEST_JS,
+            key=f"netsense_network_test_{test_id}"
+        )
+
+        if not raw:
+            return {
+                "success": False,
+                "error": "The browser did not return a network measurement."
+            }
+
+        if isinstance(raw, str):
+            data = json.loads(raw)
+        elif isinstance(raw, dict):
+            data = raw
+        else:
+            data = json.loads(str(raw))
+
+        if not data.get("success"):
+            return {
+                "success": False,
+                "error": "All browser network probes failed.",
+                "packet_loss": data.get("packet_loss", 100),
+                "method": data.get("method", "Browser HTTP probes")
+            }
+
+        return {
+            "success": True,
+            "latency": float(data["latency"]),
+            "jitter": float(data["jitter"]),
+            "packet_loss": float(data["packet_loss"]),
+            "successful": int(data.get("successful", 0)),
+            "failed": int(data.get("failed", 0)),
+            "probes": int(data.get("probes", 0)),
+            "samples": data.get("samples", []),
+            "method": data.get("method", "Browser HTTP probes")
+        }
+
+    except Exception as error:
+        return {
+            "success": False,
+            "error": str(error),
+            "method": "Browser HTTP probes"
+        }
+
 
 def clip(x, lo=0.0, hi=100.0):
     return max(lo, min(hi, float(x)))
@@ -546,7 +676,7 @@ st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
 
 f1, f2, f3 = st.columns(3, gap="medium")
 with f1:
-    st.markdown(feature_card("⚡", "Network Test", "Real latency, jitter and packet loss measurements."), unsafe_allow_html=True)
+    st.markdown(feature_card("⚡", "Network Test", "Browser-based latency, jitter and request-loss measurements."), unsafe_allow_html=True)
 with f2:
     st.markdown(feature_card("🧠", "Fuzzy Scoring", "Eight rules turn raw numbers into a 0-100 quality score."), unsafe_allow_html=True)
 with f3:
@@ -602,7 +732,23 @@ if analyze_button:
     else:
         with st.spinner("Testing your connection..."):
             try:
-                network = ping_host()
+                test_id = st.session_state.get("network_test_id", 0) + 1
+                st.session_state["network_test_id"] = test_id
+                network = measure_browser_connection(test_id)
+
+                if not network.get("success"):
+                    st.error(
+                        "Unable to measure the connection from your browser. "
+                        "Please check your internet connection and try again."
+                    )
+                    st.info(
+                        network.get(
+                            "error",
+                            "The browser network test did not return usable measurements."
+                        )
+                    )
+                    st.stop()
+
                 latency = network["latency"]
                 jitter = network["jitter"]
                 packet_loss = network["packet_loss"]
@@ -623,6 +769,10 @@ if analyze_button:
                     "latency": latency,
                     "jitter": jitter,
                     "packet_loss": packet_loss,
+                    "network_method": network.get("method", "Browser HTTP probes"),
+                    "successful_probes": network.get("successful", 0),
+                    "failed_probes": network.get("failed", 0),
+                    "total_probes": network.get("probes", 0),
                     "fuzzy": fuzzy,
                     "ai": ai,
                     "use_case": use_case_input,
@@ -642,6 +792,10 @@ if res:
     latency = res["latency"]
     jitter = res["jitter"]
     packet_loss = res["packet_loss"]
+    network_method = res.get("network_method", "Browser HTTP probes")
+    successful_probes = res.get("successful_probes", 0)
+    failed_probes = res.get("failed_probes", 0)
+    total_probes = res.get("total_probes", 0)
     fuzzy = res["fuzzy"]
     ai = res["ai"]
     use_case = res["use_case"]
@@ -735,6 +889,12 @@ if res:
                 chart_header("Distance to breaking point", f"How close each metric is to being a problem for {use_case}")
                 show(limit_fig(latency, jitter, packet_loss, use_case))
 
+        st.caption(
+            "Measurements are collected in your browser using HTTP probes. "
+            "They estimate browser-to-internet latency, jitter and request loss; "
+            "they are not raw ICMP ping measurements. "
+            f"Successful probes: {successful_probes}/{total_probes}."
+        )
         st.caption("Health, readiness and breaking-point values are estimates based on typical thresholds for each activity.")
 
     with tab_fuzzy:
@@ -764,6 +924,8 @@ if res:
             f"Latency: {latency} ms\n"
             f"Jitter: {jitter} ms\n"
             f"Packet loss: {packet_loss}%\n"
+            f"Measurement method: {network_method}\n"
+            f"Successful probes: {successful_probes}/{total_probes}\n"
             f"Readiness for {use_case}: {ready:.0f}%\n"
         )
         with card("report"):
@@ -775,6 +937,8 @@ if res:
                 f'<p><b>Latency:</b> {latency} ms</p>'
                 f'<p><b>Jitter:</b> {jitter} ms</p>'
                 f'<p><b>Packet loss:</b> {packet_loss}%</p>'
+                f'<p><b>Measurement method:</b> {network_method}</p>'
+                f'<p><b>Successful probes:</b> {successful_probes}/{total_probes}</p>'
                 f'<p><b>Readiness for {use_case}:</b> {ready:.0f}%</p></div>',
                 unsafe_allow_html=True,
             )
