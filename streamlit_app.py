@@ -650,7 +650,7 @@ def fuzzy_fig(membership):
 st.markdown(
     '<div class="nav"><div class="brand"><span class="logo"></span>Net<i>Sense</i> AI</div>'
     '<div class="chips"><span class="chip"><span class="live"></span>Fuzzy Logic</span>'
-    '<span class="chip">Gemini</span></div></div>',
+    '<span class="chip">Multi-AI</span></div></div>',
     unsafe_allow_html=True,
 )
 
@@ -659,7 +659,7 @@ st.markdown(
     '<div class="hero-tag">✦ Network intelligence</div>'
     '<h1>See what your<br>connection <em>really</em> feels like.</h1>'
     '<p class="lead">We measure latency, jitter and packet loss, score them with fuzzy logic, '
-    'chart the results and let Gemini explain what it means for you.</p>'
+    'chart the results and let your selected AI provider explain what it means for you.</p>'
     '<div class="hero-stats">'
     '<div><b>3</b><span>Core metrics</span></div>'
     '<div><b>8</b><span>Fuzzy rules</span></div>'
@@ -680,43 +680,146 @@ with f1:
 with f2:
     st.markdown(feature_card("🧠", "Fuzzy Scoring", "Eight rules turn raw numbers into a 0-100 quality score."), unsafe_allow_html=True)
 with f3:
-    st.markdown(feature_card("🤖", "AI Explanation", "Gemini explains what the numbers mean for how you use the internet."), unsafe_allow_html=True)
+    st.markdown(feature_card("🤖", "AI Explanation", "Your selected AI provider explains what the numbers mean for how you use the internet."), unsafe_allow_html=True)
 
 
 # =========================================================
 # INPUT
 # =========================================================
 
-st.markdown('<div class="kicker">01 — Analyze</div><div class="sec">Run a connection test</div>'
-            '<div class="sec-sub">Pick your main use case and start the analysis.</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="kicker">01 — Analyze</div>'
+    '<div class="sec">Run a connection test</div>'
+    '<div class="sec-sub">Choose an AI provider, enter its API key, pick your main use case and start the analysis.</div>',
+    unsafe_allow_html=True,
+)
 
-secret_key = None
-try:
-    secret_key = st.secrets.get("GEMINI_API_KEY", None)
-except Exception:
-    secret_key = None
+# ---------------------------------------------------------
+# AI PROVIDERS
+# ---------------------------------------------------------
 
-left, right = st.columns([1.3, 1], gap="large")
+AI_PROVIDERS = [
+    "Gemini",
+    "OpenAI (ChatGPT API)",
+    "Groq",
+]
+
+AI_MODELS = {
+    "Gemini": "gemini-3.8-flash",
+    "OpenAI (ChatGPT API)": "gpt-5.6-luna",
+    "Groq": "openai/gpt-oss-20b",
+}
+
+AI_SECRET_NAMES = {
+    "Gemini": "GEMINI_API_KEY",
+    "OpenAI (ChatGPT API)": "OPENAI_API_KEY",
+    "Groq": "GROQ_API_KEY",
+}
+
+AI_KEY_LABELS = {
+    "Gemini": "Gemini API Key",
+    "OpenAI (ChatGPT API)": "OpenAI API Key",
+    "Groq": "Groq API Key",
+}
+
+AI_KEY_PLACEHOLDERS = {
+    "Gemini": "Paste your Gemini API key",
+    "OpenAI (ChatGPT API)": "Paste your OpenAI API key",
+    "Groq": "Paste your Groq API key",
+}
+
+
+left, right = st.columns(
+    [1.3, 1],
+    gap="large",
+)
+
 
 with left:
-    with card("input"):
-        if secret_key:
-            api_key = secret_key
-            st.success("Gemini API key loaded securely from server settings.")
-        else:
-            api_key = st.text_input("Gemini API Key", type="password", placeholder="Paste your Gemini API key")
 
-        use_case_input = st.selectbox("What do you mainly use your internet for?", list(USE_CASE_LIMITS.keys()))
-        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-        analyze_button = st.button("⚡ Analyze Connection")
+    with card("input"):
+
+        provider_input = st.selectbox(
+            "AI Provider",
+            AI_PROVIDERS,
+            key="ai_provider_input",
+        )
+
+        secret_name = AI_SECRET_NAMES[provider_input]
+
+        provider_secret = None
+
+        try:
+            provider_secret = st.secrets.get(
+                secret_name,
+                None,
+            )
+        except Exception:
+            provider_secret = None
+
+        if provider_secret:
+
+            api_key = provider_secret
+
+            st.success(
+                f"{provider_input} API key loaded securely."
+            )
+
+        else:
+
+            api_key = st.text_input(
+                AI_KEY_LABELS[provider_input],
+                type="password",
+                placeholder=AI_KEY_PLACEHOLDERS[provider_input],
+                key=f"ai_api_key_{provider_input}",
+            )
+
+        model_input = AI_MODELS[provider_input]
+
+        st.caption(
+            f"Model: {model_input}"
+        )
+
+        use_case_input = st.selectbox(
+            "What do you mainly use your internet for?",
+            list(USE_CASE_LIMITS.keys()),
+            key="use_case_input",
+        )
+
+        st.markdown(
+            "<div style='height:6px'></div>",
+            unsafe_allow_html=True,
+        )
+
+        analyze_button = st.button(
+            "⚡ Analyze Connection"
+        )
+
 
 with right:
+
     st.markdown(
         '<div class="gcard">'
-        + step("01", "Measure", "Latency • Jitter • Packet loss")
-        + step("02", "Score", "8 fuzzy rules → quality score")
-        + step("03", "Visualize", "Gauge, radar, readiness and limit charts")
-        + step("04", "Explain", "Gemini gives tailored recommendations")
+        + step(
+            "01",
+            "Measure",
+            "Latency • Jitter • Packet loss",
+        )
+        + step(
+            "02",
+            "Score",
+            "8 fuzzy rules → quality score",
+        )
+        + step(
+            "03",
+            "Visualize",
+            "Gauge, radar, readiness and limit charts",
+        )
+        + step(
+            "04",
+            "Explain",
+            f"{provider_input} explains what the numbers mean",
+        )
         + "</div>",
         unsafe_allow_html=True,
     )
@@ -724,125 +827,238 @@ with right:
 
 # =========================================================
 # RUN ANALYSIS
-# IMPORTANT:
-# st_js_blocking() can trigger a Streamlit rerun while waiting
-# for browser-side JavaScript. We therefore store the user's
-# request in session_state before starting the measurement.
+# =========================================================
+# st_js_blocking() can trigger a Streamlit rerun while
+# waiting for browser-side JavaScript. The user's request
+# and selected AI provider are therefore stored in
+# session_state before the browser measurement starts.
 # =========================================================
 
 if analyze_button:
-    if not api_key:
-        st.error("Please enter your Gemini API key.")
-    else:
-        st.session_state["analysis_requested"] = True
-        st.session_state["analysis_api_key"] = api_key
-        st.session_state["analysis_use_case"] = use_case_input
 
-        test_id = st.session_state.get("network_test_id", 0) + 1
+    if not api_key or not api_key.strip():
+
+        st.error(
+            f"Please enter your {provider_input} API key."
+        )
+
+    else:
+
+        st.session_state["analysis_requested"] = True
+
+        st.session_state["analysis_api_key"] = (
+            api_key.strip()
+        )
+
+        st.session_state["analysis_provider"] = (
+            provider_input
+        )
+
+        st.session_state["analysis_model"] = (
+            model_input
+        )
+
+        st.session_state["analysis_use_case"] = (
+            use_case_input
+        )
+
+        test_id = (
+            st.session_state.get(
+                "network_test_id",
+                0,
+            )
+            + 1
+        )
+
         st.session_state["network_test_id"] = test_id
 
-        # Clear the previous result so the new test becomes the active one.
-        st.session_state.pop("res", None)
-
-
-# Continue the analysis after the rerun triggered by st_js_blocking().
-if st.session_state.get("analysis_requested", False):
-
-    api_key_run = st.session_state.get("analysis_api_key", "")
-    use_case_run = st.session_state.get(
-        "analysis_use_case",
-        "General Usage"
-    )
-    test_id = st.session_state.get("network_test_id", 1)
-
-    try:
-        with st.spinner("Testing your connection..."):
-
-            # -------------------------------------------------
-            # 1. Measure from the visitor's browser
-            # -------------------------------------------------
-            network = measure_browser_connection(test_id)
-
-            if not network.get("success"):
-                st.error(
-                    "Unable to measure the connection from your browser. "
-                    "Please check your internet connection and try again."
-                )
-                st.info(
-                    network.get(
-                        "error",
-                        "The browser network test did not return usable measurements."
-                    )
-                )
-                st.session_state["analysis_requested"] = False
-
-            else:
-                # -------------------------------------------------
-                # 2. Get the measured network values
-                # -------------------------------------------------
-                latency = network["latency"]
-                jitter = network["jitter"]
-                packet_loss = network["packet_loss"]
-
-                # -------------------------------------------------
-                # 3. Fuzzy Logic scoring
-                # -------------------------------------------------
-                fuzzy = calculate_quality(
-                    latency,
-                    jitter,
-                    packet_loss
-                )
-
-                # -------------------------------------------------
-                # 4. LangChain + Gemini explanation
-                # -------------------------------------------------
-                ai = generate_ai_analysis(
-                    api_key=api_key_run,
-                    latency=latency,
-                    jitter=jitter,
-                    packet_loss=packet_loss,
-                    quality_score=fuzzy["score"],
-                    category=fuzzy["category"],
-                    use_case=use_case_run,
-                )
-
-                # -------------------------------------------------
-                # 5. Save everything so results survive reruns
-                # -------------------------------------------------
-                st.session_state["res"] = {
-                    "latency": latency,
-                    "jitter": jitter,
-                    "packet_loss": packet_loss,
-                    "network_method": network.get(
-                        "method",
-                        "Browser HTTP probes"
-                    ),
-                    "successful_probes": network.get(
-                        "successful",
-                        0
-                    ),
-                    "failed_probes": network.get(
-                        "failed",
-                        0
-                    ),
-                    "total_probes": network.get(
-                        "probes",
-                        0
-                    ),
-                    "fuzzy": fuzzy,
-                    "ai": ai,
-                    "use_case": use_case_run,
-                }
-
-                st.session_state["analysis_requested"] = False
-
-    except Exception as error:
-        st.error("Something went wrong during analysis.")
-        st.exception(error)
-        st.session_state["analysis_requested"] = False
+        # Clear previous result.
+        st.session_state.pop(
+            "res",
+            None,
+        )
 
 
 # =========================================================
+# CONTINUE ANALYSIS AFTER JS RERUN
+# =========================================================
+
+if st.session_state.get(
+    "analysis_requested",
+    False,
+):
+
+    api_key_run = st.session_state.get(
+        "analysis_api_key",
+        "",
+    )
+
+    provider_run = st.session_state.get(
+        "analysis_provider",
+        "Gemini",
+    )
+
+    model_run = st.session_state.get(
+        "analysis_model",
+        AI_MODELS.get(
+            provider_run,
+            "gemini-3.8-flash",
+        ),
+    )
+
+    use_case_run = st.session_state.get(
+        "analysis_use_case",
+        "General Usage",
+    )
+
+    test_id = st.session_state.get(
+        "network_test_id",
+        1,
+    )
+
+    try:
+
+        with st.spinner(
+            f"Testing your connection and asking {provider_run}..."
+        ):
+
+            # -------------------------------------------------
+            # 1. Browser-side network measurement
+            # -------------------------------------------------
+
+            network = measure_browser_connection(
+                test_id
+            )
+
+            if not network.get("success"):
+
+                st.error(
+                    "Unable to measure the connection from your browser."
+                )
+
+                st.info(
+                    network.get(
+                        "error",
+                        "Browser network test failed.",
+                    )
+                )
+
+                st.session_state[
+                    "analysis_requested"
+                ] = False
+
+            else:
+
+                # -------------------------------------------------
+                # 2. Get network values
+                # -------------------------------------------------
+
+                latency = network["latency"]
+
+                jitter = network["jitter"]
+
+                packet_loss = network["packet_loss"]
+
+
+                # -------------------------------------------------
+                # 3. Fuzzy Logic
+                # -------------------------------------------------
+
+                fuzzy = calculate_quality(
+                    latency,
+                    jitter,
+                    packet_loss,
+                )
+
+
+                # -------------------------------------------------
+                # 4. AI / LLM
+                # -------------------------------------------------
+
+                ai = generate_ai_analysis(
+
+                    provider=provider_run,
+
+                    api_key=api_key_run,
+
+                    latency=latency,
+
+                    jitter=jitter,
+
+                    packet_loss=packet_loss,
+
+                    quality_score=fuzzy["score"],
+
+                    category=fuzzy["category"],
+
+                    use_case=use_case_run,
+
+                    model=model_run,
+                )
+
+
+                # -------------------------------------------------
+                # 5. Save result
+                # -------------------------------------------------
+
+                st.session_state["res"] = {
+
+                    "latency": latency,
+
+                    "jitter": jitter,
+
+                    "packet_loss": packet_loss,
+
+                    "network_method": network.get(
+                        "method",
+                        "Browser HTTP probes",
+                    ),
+
+                    "successful_probes": network.get(
+                        "successful",
+                        0,
+                    ),
+
+                    "failed_probes": network.get(
+                        "failed",
+                        0,
+                    ),
+
+                    "total_probes": network.get(
+                        "probes",
+                        0,
+                    ),
+
+                    "fuzzy": fuzzy,
+
+                    "ai": ai,
+
+                    "use_case": use_case_run,
+
+                    "ai_provider": provider_run,
+
+                    "ai_model": model_run,
+
+                }
+
+                st.session_state[
+                    "analysis_requested"
+                ] = False
+
+
+    except Exception as error:
+
+        st.error(
+            "Something went wrong during analysis."
+        )
+
+        st.exception(error)
+
+        st.session_state[
+            "analysis_requested"
+        ] = False
+
+
 # RESULTS
 # =========================================================
 
