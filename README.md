@@ -510,7 +510,7 @@ The AI generates:
 ### 🤖 AI Insights
 
 <p align="center">
-  <img src="screenshots/ainsights.png" width="55%" alt="AI Insights" />
+  <img src="screenshots/aiinsights.png" width="55%" alt="AI Insights" />
 </p>
 
 ### 📄 Report
